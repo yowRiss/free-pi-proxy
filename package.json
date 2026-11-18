@@ -1,0 +1,22 @@
+{
+  "name": "free-pi-proxy",
+  "version": "1.0.0",
+  "description": "OpenAI-compatible API proxy server for free-pi-cli models",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "freepi-proxy": "./bin/freepi-proxy.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "free-pi",
+    "openai",
+    "proxy",
+    "deepseek",
+    "api"
+  ],
+  "license": "MIT"
+}
