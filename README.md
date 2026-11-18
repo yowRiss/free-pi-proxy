@@ -1,41 +1,62 @@
-# Free-PI OpenAI-Compatible API Proxy
+# Free-PI OpenAI-Compatible API Proxy & Dashboard
 
-Proxy server ringan (Zero Dependencies, pure Node.js) untuk mengubah model AI dari `free-pi-cli` (seperti DeepSeek V4.1 Flash, Particle-1, GLM 5.3 Flash, dll.) menjadi **Standard OpenAI-Compatible REST API**.
-
-Dengan proxy ini, Anda bisa memakai model gratis dari Free-PI di berbagai aplikasi seperti:
-- **NextChat / ChatGPT-Next-Web**
-- **LibreChat / Open-WebUI**
-- **Chatbox / Jan / LM Studio**
-- **Cursor / VS Code (Continue.dev / Cline / Roo Code)**
-- **Python / LangChain / LlamaIndex / OpenAI SDK**
+Proxy server ringan (Zero Dependencies, pure Node.js) untuk mengubah model AI dari `free-pi-cli` (seperti DeepSeek V4.1 Flash, Particle-1, GLM 5.3 Flash, dll.) menjadi **Standard OpenAI-Compatible REST API**, dilengkapi dengan **Web & Terminal Dashboard** untuk memantau usage, sisa kredit allowance harian, dan model yang tersedia.
 
 ---
 
 ## 🚀 Fitur Utama
-1. **OpenAI Standard Compatible**:
+1. **Interactive Web Dashboard (`/dashboard`)**:
+   - Cek sisa kuota / allowance credits harian (contoh: 15.000 / 15.000 credits).
+   - Progress bar sisa kredit & hitung mundur waktu reset harian.
+   - Statistik token & request (hari ini dan lifetime).
+   - Katalog 18 model lengkap dengan filter (*Free Unlimited*, *Defense*, dll.).
+   - Interactive Test Playground: bisa langsung tes prompt & streaming response dari browser!
+2. **Terminal CLI Dashboard (`freepi-proxy stats`)**:
+   - Tampilan visual di terminal untuk mengecek kredit dan token tanpa perlu membuka browser.
+3. **OpenAI Standard Compatible**:
    - `GET /v1/models` (otomatis mengambil daftar model yang tersedia di Free-PI)
    - `POST /v1/chat/completions` (mendukung streaming SSE `stream: true` dan non-stream)
-2. **Auto-Auth Detection**: Otomatis membaca token login dari `~/.free-pi/agent/credentials.json`.
-3. **CORS Enabled**: Bisa diakses langsung dari web frontend apa saja.
-4. **Proxy Security (API Key)**: Mendukung proteksi `PROXY_API_KEY` agar proxy aman saat diekspos ke publik / internet.
-5. **Zero External Dependencies**: Tidak perlu `npm install`, cukup jalankan langsung dengan Node.js.
+4. **Auto-Auth Detection**: Otomatis membaca token login dari `~/.free-pi/agent/credentials.json`.
+5. **CORS Enabled**: Bisa diakses langsung dari web frontend apa saja (NextChat, LibreChat, Chatbox, Cursor, Continue.dev).
+6. **Proxy Security (API Key)**: Mendukung proteksi `PROXY_API_KEY` agar proxy aman saat diekspos ke publik / internet.
+7. **Zero External Dependencies**: Murni menggunakan native Node.js.
 
 ---
 
-## 🛠️ Cara Menjalankan
+## 📊 Cara Mengakses Dashboard
 
-### Menggunakan Command Terminal `freepi-proxy` (Rekomendasi)
-Karena sudah terpasang di path sistem Anda, Anda cukup mengetikkan:
+### 1. Web Dashboard (di Browser)
+Jalankan proxy:
 ```bash
 freepi-proxy
 ```
-Opsi tambahan:
+Lalu buka browser Anda ke:
+👉 **`http://localhost:3000/dashboard`** (atau `http://localhost:3000`)
+
+### 2. Terminal Dashboard (di CLI)
+Ketik langsung di terminal kapan saja:
 ```bash
-# Menjalankan di port tertentu
+freepi-proxy stats
+```
+*(atau `freepi-proxy dashboard`)*
+
+---
+
+## 🛠️ Cara Menjalankan Proxy
+
+### Menggunakan Command Terminal `freepi-proxy`
+```bash
+# Jalankan di port default (3000)
+freepi-proxy
+
+# Jalankan di port custom
 freepi-proxy -p 8080
 
-# Menjalankan dengan proteksi API Key
+# Jalankan dengan proteksi API Key
 freepi-proxy -p 3000 -k rahasia123
+
+# Cek kuota / usage / kredit di terminal
+freepi-proxy stats
 
 # Cek bantuan dan opsi lengkap
 freepi-proxy --help

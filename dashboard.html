@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free-PI Proxy Dashboard</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --card-bg: #121215;
+      --card-border: #27272a;
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --accent: #8b5cf6;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.5px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #18181b;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+    }
+
+    .badge-online {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: var(--success);
+    }
+
+    .btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #27272a;
+      border-color: #3f3f46;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    /* Grid layout */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+
+    .card-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Progress bar */
+    .progress-wrap {
+      width: 100%;
+      height: 8px;
+      background: #27272a;
+      border-radius: 9999px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+      border-radius: 9999px;
+      width: 100%;
+      transition: width 0.5s ease;
+    }
+
+    /* Section & Tabs */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      background: #18181b;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: #27272a;
+      color: var(--text-main);
+    }
+
+    /* Model search & table */
+    .search-box {
+      background: #18181b;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: white;
+      font-size: 13px;
+      width: 250px;
+    }
+
+    .search-box:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .model-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+
+    .model-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.2s;
+    }
+
+    .model-card:hover {
+      border-color: #3f3f46;
+    }
+
+    .model-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+
+    .model-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .model-id {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      background: #18181b;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+
+    .model-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #27272a;
+      color: var(--text-muted);
+    }
+
+    .tag-free {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .tag-defense {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid #3f3f46;
+      color: var(--text-muted);
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: #27272a;
+      color: white;
+    }
+
+    /* Playground section */
+    .playground-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    select, textarea {
+      width: 100%;
+      background: #18181b;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: white;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .chat-response-box {
+      margin-top: 16px;
+      background: #0d0d10;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: inherit;
+      font-size: 14px;
+      color: #e4e4e7;
+      min-height: 80px;
+      max-height: 350px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Snippet Box */
+    .snippet-box {
+      background: #0d0d10;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo-area">
+        <div class="logo-badge">FREE-PI</div>
+        <div>
+          <h1>Proxy Management Dashboard</h1>
+          <p style="font-size: 12px; color: var(--text-muted);">OpenAI-Compatible REST API Bridge</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="proxyStatusBadge" class="badge badge-online">● Proxy Online</span>
+        <span id="userBadge" class="badge">👤 Loading...</span>
+        <button class="btn" onclick="loadDashboardData()">🔄 Refresh</button>
+      </div>
+    </header>
+
+    <!-- Top Stats Grid -->
+    <div class="grid">
+      <!-- Card 1: Daily Allowance & Credits -->
+      <div class="card">
+        <div class="card-title">
+          <span>Daily Credits / Allowance</span>
+          <span>💳</span>
+        </div>
+        <div id="remainingCreditsVal" class="card-value">--</div>
+        <div id="allowanceSub" class="card-sub">from -- allowance today</div>
+        <div class="progress-wrap">
+          <div id="creditProgressBar" class="progress-bar" style="width: 100%;"></div>
+        </div>
+        <div id="refillTimeSub" style="font-size: 11px; color: #71717a; margin-top: 8px;">Resets at: --</div>
+      </div>
+
+      <!-- Card 2: Today's Requests -->
+      <div class="card">
+        <div class="card-title">
+          <span>Requests Today</span>
+          <span>⚡</span>
+        </div>
+        <div id="requestsTodayVal" class="card-value">--</div>
+        <div id="tokensTodaySub" class="card-sub">Tokens: -- prompt / -- out</div>
+      </div>
+
+      <!-- Card 3: Lifetime Usage -->
+      <div class="card">
+        <div class="card-title">
+          <span>Lifetime Token Volume</span>
+          <span>📊</span>
+        </div>
+        <div id="lifetimeTokensVal" class="card-value">--</div>
+        <div id="lifetimeRequestsSub" class="card-sub">Total: -- requests · $0.00 spent</div>
+      </div>
+
+      <!-- Card 4: Account Tier & Lane -->
+      <div class="card">
+        <div class="card-title">
+          <span>Account Tier & Lane</span>
+          <span>🛡️</span>
+        </div>
+        <div id="accountTierVal" class="card-value" style="font-size: 22px;">--</div>
+        <div id="accountLaneSub" class="card-sub">Lane: Standard · No restrictions</div>
+      </div>
+    </div>
+
+    <!-- Quick Connect Box -->
+    <div class="card" style="margin-bottom: 28px;">
+      <div class="card-title">
+        <span>🔗 Quick API Connection Info</span>
+        <button class="copy-btn" onclick="copyText(window.location.origin + '/v1')">Copy Base URL</button>
+      </div>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
+        Gunakan URL berikut sebagai <b>Base URL / API Host</b> di NextChat, Chatbox, Cursor, Continue.dev, atau OpenAI SDK:
+      </p>
+      <div id="apiEndpointUrl" class="snippet-box">http://localhost:3000/v1</div>
+    </div>
+
+    <!-- Interactive Chat Playground -->
+    <div class="playground-box">
+      <div class="section-title" style="margin-bottom: 14px;">
+        <span>🧪 Interactive Test Playground</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 14px;">
+        <div class="form-group">
+          <label>Choose Model</label>
+          <select id="playgroundModelSelect">
+            <option value="deepseek-v4-flash">deepseek-v4-flash (Recommended)</option>
+            <option value="deepseek-v4.1-flash">deepseek-v4.1-flash</option>
+            <option value="particle">particle (Particle-1)</option>
+            <option value="glm-5.3-flash">glm-5.3-flash</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Prompt</label>
+          <textarea id="playgroundPrompt" rows="1" placeholder="Type a prompt to test model inference..."></textarea>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="sendBtn" class="btn btn-primary" onclick="sendPlaygroundMessage()">Send Test Prompt</button>
+      </div>
+      <div id="playgroundOutput" class="chat-response-box" style="display: none;"></div>
+    </div>
+
+    <!-- Model Catalog Section -->
+    <div class="section-header">
+      <div class="section-title">
+        <span>🤖 Available Free-PI Models (<span id="modelCount">--</span>)</span>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="filterModels('all', this)">All</button>
+          <button class="tab-btn" onclick="filterModels('free', this)">Free Unlimited</button>
+          <button class="tab-btn" onclick="filterModels('defense', this)">Defense</button>
+        </div>
+        <input type="text" id="modelSearch" class="search-box" placeholder="Search models..." oninput="renderModels()">
+      </div>
+    </div>
+
+    <!-- Models List Grid -->
+    <div id="modelsGrid" class="model-list">
+      <!-- Injected via JavaScript -->
+    </div>
+  </div>
+
+  <script>
+    let allModels = [];
+    let currentFilter = 'all';
+
+    function formatNumber(num) {
+      if (num === null || num === undefined) return '0';
+      return Number(num).toLocaleString();
+    }
+
+    async function loadDashboardData() {
+      try {
+        const res = await fetch('/api/stats');
+        if (!res.ok) throw new Error('Failed to fetch proxy stats');
+        const data = await res.json();
+
+        // Update user badge
+        const user = data.user || {};
+        document.getElementById('userBadge').innerText = `👤 @${user.handle || 'Free-PI User'}`;
+
+        // Update credits card
+        const credits = data.credits || {};
+        const remaining = credits.remaining || 0;
+        const allowance = credits.allowance || 15000;
+        document.getElementById('remainingCreditsVal').innerText = formatNumber(remaining);
+        document.getElementById('allowanceSub').innerText = `from ${formatNumber(allowance)} allowance today`;
+        
+        const pct = Math.max(0, Math.min(100, Math.round((remaining / allowance) * 100)));
+        document.getElementById('creditProgressBar').style.width = `${pct}%`;
+        
+        if (credits.refill_at) {
+          const dt = new Date(credits.refill_at);
+          document.getElementById('refillTimeSub').innerText = `Resets at: ${dt.toLocaleTimeString()} (${dt.toLocaleDateString()})`;
+        }
+
+        // Update usage today
+        const usage = data.usage_today || {};
+        document.getElementById('requestsTodayVal').innerText = `${formatNumber(usage.requests)} reqs`;
+        document.getElementById('tokensTodaySub').innerText = `Tokens: ${formatNumber(usage.prompt_tokens)} in / ${formatNumber(usage.completion_tokens)} out`;
+
+        // Update lifetime
+        const lifetime = data.lifetime || {};
+        const totalTokens = (lifetime.prompt_tokens || 0) + (lifetime.completion_tokens || 0);
+        document.getElementById('lifetimeTokensVal').innerText = formatNumber(totalTokens);
+        document.getElementById('lifetimeRequestsSub').innerText = `Total: ${formatNumber(lifetime.requests)} requests · $0.00 spent`;
+
+        // Update Account Tier
+        document.getElementById('accountTierVal').innerText = (user.tier || 'Established').toUpperCase();
+        document.getElementById('accountLaneSub').innerText = `Lane: ${user.lane || 'Standard'}`;
+
+        // Set Base URL display
+        document.getElementById('apiEndpointUrl').innerText = window.location.origin + '/v1';
+
+        // Update models
+        allModels = data.models || [];
+        document.getElementById('modelCount').innerText = allModels.length;
+
+        // Populate playground select
+        const select = document.getElementById('playgroundModelSelect');
+        select.innerHTML = '';
+        allModels.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          opt.innerText = `${m.id} ${m.free ? '· Free' : ''}`;
+          if (m.id === 'deepseek-v4-flash') opt.selected = true;
+          select.appendChild(opt);
+        });
+
+        renderModels();
+      } catch (err) {
+        console.error('Error loading dashboard:', err);
+      }
+    }
+
+    function filterModels(filter, btn) {
+      currentFilter = filter;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      renderModels();
+    }
+
+    function renderModels() {
+      const query = (document.getElementById('modelSearch').value || '').toLowerCase();
+      const grid = document.getElementById('modelsGrid');
+      grid.innerHTML = '';
+
+      const filtered = allModels.filter(m => {
+        const matchesQuery = m.id.toLowerCase().includes(query) || (m.display_name && m.display_name.toLowerCase().includes(query));
+        if (!matchesQuery) return false;
+        if (currentFilter === 'free') return m.free === true;
+        if (currentFilter === 'defense') return m.section === 'defense';
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div style="color: var(--text-muted); font-size: 14px; padding: 16px;">No matching models found.</div>';
+        return;
+      }
+
+      filtered.forEach(m => {
+        const el = document.createElement('div');
+        el.className = 'model-card';
+        el.innerHTML = `
+          <div>
+            <div class="model-top">
+              <div>
+                <div class="model-name">${m.display_name || m.name || m.id}</div>
+                <div class="model-id">${m.id}</div>
+              </div>
+              <button class="copy-btn" onclick="copyText('${m.id}')">Copy ID</button>
+            </div>
+            <div class="model-tags">
+              ${m.free ? '<span class="tag tag-free">Free Unlimited</span>' : '<span class="tag">Standard</span>'}
+              ${m.section === 'defense' ? '<span class="tag tag-defense">Defense</span>' : ''}
+              ${m.usage_x ? `<span class="tag">~${m.usage_x}x usage</span>` : ''}
+              <span class="tag">200k Context</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(el);
+      });
+    }
+
+    async function sendPlaygroundMessage() {
+      const model = document.getElementById('playgroundModelSelect').value;
+      const prompt = document.getElementById('playgroundPrompt').value.trim();
+      const output = document.getElementById('playgroundOutput');
+      const sendBtn = document.getElementById('sendBtn');
+
+      if (!prompt) {
+        alert('Please enter a prompt first.');
+        return;
+      }
+
+      output.style.display = 'block';
+      output.innerText = 'Thinking... ⏳\n';
+      sendBtn.disabled = true;
+
+      try {
+        const res = await fetch('/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: model,
+            stream: true,
+            messages: [{ role: 'user', content: prompt }]
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          output.innerText = `Error (${res.status}): ${err}`;
+          sendBtn.disabled = false;
+          return;
+        }
+
+        output.innerText = '';
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.replace('data: ', '').trim();
+              if (dataStr === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(dataStr);
+                const delta = parsed.choices[0]?.delta?.content || '';
+                output.innerText += delta;
+                output.scrollTop = output.scrollHeight;
+              } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        output.innerText += `\n[Request Failed: ${err.message}]`;
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    function copyText(txt) {
+      navigator.clipboard.writeText(txt).then(() => {
+        alert('Copied to clipboard: ' + txt);
+      });
+    }
+
+    // Initial load
+    loadDashboardData();
+    // Refresh stats every 15 seconds
+    setInterval(loadDashboardData, 15000);
+  </script>
+</body>
+</html>

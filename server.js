@@ -3,7 +3,8 @@
 /**
  * Free-PI OpenAI-Compatible Proxy Server
  * 
- * Exposes Free-PI models as a standard OpenAI API compatible endpoint.
+ * Exposes Free-PI models as a standard OpenAI API compatible endpoint,
+ * with built-in Web & CLI Dashboard for usage, credits, and model monitoring.
  * Zero external dependencies (pure Node.js).
  */
 
@@ -11,6 +12,10 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -21,12 +26,12 @@ const PROXY_API_KEY = process.env.PROXY_API_KEY || ''; // Optional security key 
 // Path to credentials
 const CREDENTIALS_PATH = process.env.FREEPI_CREDENTIALS_PATH || path.join(os.homedir(), '.free-pi', 'agent', 'credentials.json');
 
-// Cache for models
+// Cache for models & stats
 let cachedModels = null;
 let lastModelFetch = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
-function getFreePiToken() {
+export function getFreePiToken() {
   if (process.env.FREEPI_TOKEN) {
     return process.env.FREEPI_TOKEN.trim();
   }
@@ -44,14 +49,14 @@ function getFreePiToken() {
   return null;
 }
 
-async function fetchModels(token) {
+export async function fetchModels(token) {
   const now = Date.now();
   if (cachedModels && (now - lastModelFetch < CACHE_TTL_MS)) {
     return cachedModels;
   }
 
   try {
-    const headers = {};
+    const headers = { 'x-client-version': CLIENT_VERSION };
     if (token) {
       headers['authorization'] = `Bearer ${token}`;
     }
@@ -72,7 +77,10 @@ async function fetchModels(token) {
       root: m.id,
       parent: null,
       display_name: m.display_name || m.name,
-      free: m.free ?? true
+      name: m.name,
+      free: m.free ?? true,
+      section: m.section || 'main',
+      usage_x: m.usage_x || null
     }));
     lastModelFetch = now;
     return cachedModels;
@@ -80,11 +88,81 @@ async function fetchModels(token) {
     console.error('[Error] Failed to fetch models:', err.message);
     if (cachedModels) return cachedModels;
     return [
-      { id: 'deepseek-v4-flash', object: 'model', owned_by: 'free-pi' },
-      { id: 'deepseek-v4.1-flash', object: 'model', owned_by: 'free-pi' },
-      { id: 'particle', object: 'model', owned_by: 'free-pi' },
-      { id: 'glm-5.3-flash', object: 'model', owned_by: 'free-pi' }
+      { id: 'deepseek-v4-flash', object: 'model', display_name: 'DeepSeek V4 Flash', free: true },
+      { id: 'deepseek-v4.1-flash', object: 'model', display_name: 'DeepSeek V4.1 Flash', free: true },
+      { id: 'particle', object: 'model', display_name: 'Particle-1', free: true },
+      { id: 'glm-5.3-flash', object: 'model', display_name: 'GLM 5.3 Flash', free: true }
     ];
+  }
+}
+
+export async function fetchFullStats(token) {
+  try {
+    const headers = {
+      'x-client-version': CLIENT_VERSION
+    };
+    if (token) {
+      headers['authorization'] = `Bearer ${token}`;
+    }
+
+    const [statsRes, models] = await Promise.all([
+      fetch(`${BACKEND_BASE}/me/stats`, { headers }),
+      fetchModels(token)
+    ]);
+
+    let stats = {};
+    if (statsRes.ok) {
+      stats = await statsRes.json();
+    }
+
+    const allowance = stats.allowance_credits ?? 15000;
+    const remaining = stats.remaining_credits_today ?? allowance;
+    const usedToday = Math.max(0, allowance - remaining);
+    const percentLeft = allowance > 0 ? ((remaining / allowance) * 100).toFixed(1) : 100;
+
+    return {
+      success: true,
+      timestamp: new Date().toISOString(),
+      user: {
+        id: stats.user_id || 'unknown',
+        handle: stats.handle || 'user',
+        tier: stats.tier || 'established',
+        lane: stats.lane || 'standard',
+        streak: stats.streak || { days: 0 }
+      },
+      credits: {
+        allowance: allowance,
+        remaining: remaining,
+        used_today: usedToday,
+        percent_left: parseFloat(percentLeft),
+        refill_at: stats.refill_at || null,
+        bonus_credits: stats.bonus_credits || 0,
+        bonus_wallet_credits: stats.bonus_wallet_credits || 0,
+        premium_credits: stats.premium_credits || 0,
+        credit_usd: stats.credit_usd || 0
+      },
+      usage_today: {
+        requests: stats.request_count_today || 0,
+        prompt_tokens: stats.prompt_tokens_today || 0,
+        completion_tokens: stats.completion_tokens_today || 0,
+        total_tokens: (stats.prompt_tokens_today || 0) + (stats.completion_tokens_today || 0),
+        spent_usd: stats.spent_usd_today || 0
+      },
+      lifetime: {
+        requests: stats.lifetime?.request_count || stats.request_count_today || 0,
+        prompt_tokens: stats.lifetime?.prompt_tokens || stats.prompt_tokens_today || 0,
+        completion_tokens: stats.lifetime?.completion_tokens || stats.completion_tokens_today || 0,
+        total_tokens: ((stats.lifetime?.prompt_tokens || 0) + (stats.lifetime?.completion_tokens || 0)) || 0,
+        spent_usd: stats.lifetime?.spent_usd || 0
+      },
+      models: models
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message,
+      models: await fetchModels(token)
+    };
   }
 }
 
@@ -96,6 +174,14 @@ function sendJson(res, statusCode, data) {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-requested-with'
   });
   res.end(JSON.stringify(data));
+}
+
+function sendHtml(res, statusCode, html) {
+  res.writeHead(statusCode, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Access-Control-Allow-Origin': '*'
+  });
+  res.end(html);
 }
 
 function handleCors(req, res) {
@@ -136,17 +222,41 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname.replace(/\/+$/, '') || '/';
+  const accept = req.headers.accept || '';
 
-  // Home / Health route
+  // 1. Dashboard Web UI (HTML)
+  if (req.method === 'GET' && (pathname === '/dashboard' || (pathname === '/' && accept.includes('text/html')))) {
+    try {
+      const htmlPath = path.join(__dirname, 'dashboard.html');
+      if (fs.existsSync(htmlPath)) {
+        const html = fs.readFileSync(htmlPath, 'utf-8');
+        return sendHtml(res, 200, html);
+      }
+    } catch (err) {
+      console.error('Failed to load dashboard.html:', err);
+    }
+  }
+
+  // 2. Dashboard Stats JSON Endpoint
+  if (req.method === 'GET' && (pathname === '/api/stats' || pathname === '/stats')) {
+    const token = getFreePiToken();
+    const stats = await fetchFullStats(token);
+    return sendJson(res, 200, stats);
+  }
+
+  // 3. Root JSON status
   if (req.method === 'GET' && pathname === '/') {
     const token = getFreePiToken();
     const models = await fetchModels(token);
     return sendJson(res, 200, {
       status: 'online',
       service: 'Free-PI OpenAI-Compatible Proxy',
+      dashboard: `http://${req.headers.host || 'localhost'}/dashboard`,
       authenticated_to_freepi: Boolean(token),
       auth_required_for_clients: Boolean(PROXY_API_KEY),
       endpoints: [
+        'GET /dashboard (Web UI)',
+        'GET /api/stats (Usage & Credits Data)',
         'GET /v1/models',
         'POST /v1/chat/completions'
       ],
@@ -261,11 +371,23 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`=======================================================`);
-  console.log(`🚀 Free-PI OpenAI Proxy Server running!`);
-  console.log(`📍 Local address: http://${HOST}:${PORT}`);
-  console.log(`🔗 Base URL:      http://localhost:${PORT}/v1`);
-  console.log(`🔒 Proxy Auth:    ${PROXY_API_KEY ? 'Enabled (API Key set)' : 'Disabled (Open/Public)'}`);
-  console.log(`=======================================================`);
-});
+// Server starter
+export function startServer(port = PORT, host = HOST) {
+  server.listen(port, host, () => {
+    console.log(`=======================================================`);
+    console.log(`🚀 Free-PI OpenAI Proxy Server running!`);
+    console.log(`📍 Local address: http://${host}:${port}`);
+    console.log(`📊 Web Dashboard: http://${host}:${port}/dashboard`);
+    console.log(`🔗 Base URL:      http://localhost:${port}/v1`);
+    console.log(`🔒 Proxy Auth:    ${PROXY_API_KEY ? 'Enabled (API Key set)' : 'Disabled (Open/Public)'}`);
+    console.log(`=======================================================`);
+  });
+  return server;
+}
+
+// Auto-start if executed directly via `node server.js`
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  startServer();
+}
+
+export default server;
