@@ -515,6 +515,8 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+let adHeartbeatTimer = null;
+
 // Server starter
 export function startServer(port = PORT, host = HOST) {
   server.listen(port, host, () => {
@@ -524,11 +526,19 @@ export function startServer(port = PORT, host = HOST) {
     console.log(`📊 Web Dashboard: http://${host}:${port}/dashboard`);
     console.log(`🔗 Base URL:      http://localhost:${port}/v1`);
     console.log(`🔒 Proxy Auth:    ${PROXY_API_KEY ? 'Enabled (API Key set)' : 'Disabled (Open/Public)'}`);
-    console.log(`📢 Ad Verification: Active & Recording Impressions`);
+    console.log(`📢 Ad Verification: Background Heartbeat Active (24/7)`);
     console.log(`=======================================================`);
 
     // Initial background ad fetch to prime the account
     fetchAndRecordAd('server_start', true).catch(() => {});
+
+    // Keep ad impressions active 24/7 in the background, even when browser is closed
+    if (!adHeartbeatTimer) {
+      adHeartbeatTimer = setInterval(() => {
+        fetchAndRecordAd('background_heartbeat', true).catch(() => {});
+      }, 45000);
+      adHeartbeatTimer.unref?.();
+    }
   });
   return server;
 }
