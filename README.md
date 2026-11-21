@@ -32,7 +32,10 @@ It allows you to use your free daily AI inference allowance inside **any** appli
 
 - **🔌 OpenAI Standard Compatible**: Implements `/v1/chat/completions` (streaming & non-streaming) and `/v1/models`.
 - **⚡ Server-Sent Events (SSE)**: Native streaming support with smooth token delivery.
-- **📢 Automated Ad Verification & Dashboard Banner**: Automatically pulls Free-PI ads, records impressions, and displays live sponsor banners in both the Web Dashboard and CLI, completely preventing `HTTP 403: ads_required` errors.
+- **🚦 Single-Flight Gate & Queue**: Serializes parallel requests internally to strictly respect Free-PI's "one request at a time" limit, preventing `HTTP 429 concurrent` errors during multi-agent tool calls.
+- **💾 Persistent Session ID**: Persists `x-session-id` in `.session-id` across restarts, eliminating `HTTP 409 concurrent_session` slot exhaustion.
+- **⏳ Exponential Backoff Retry**: Auto-retries 429 rate limits (3s → 60s, up to ~2.5 minutes) and 403 `ads_required` with impression refreshes.
+- **📢 Automated Ad Verification & Dashboard Banner**: Automatically pulls Free-PI ads, records impressions 24/7 in the background, and displays live sponsor banners in both the Web Dashboard and CLI.
 - **📊 Built-in Web & CLI Dashboard**:
   - **Web UI** (`/dashboard`): Track credit allowance, usage history, token metrics, model catalog, live sponsor ads, and test prompts in an interactive playground.
   - **Terminal CLI** (`freepi-proxy stats`): Instant CLI summary of today's credits, token consumption, and active sponsor.
@@ -236,6 +239,8 @@ curl http://localhost:3000/v1/chat/completions \
 | `HOST` | Listening host (default: `0.0.0.0`) |
 | `PROXY_API_KEY` | Optional bearer token required by incoming client requests |
 | `FREEPI_TOKEN` | Manual Free-PI JWT token override |
+| `FREEPI_SESSION_ID` | Optional explicit persistent session UUID override |
+| `FREEPI_SESSION_FILE` | Path to persistent session ID file (default: `.session-id`) |
 | `FREEPI_BASE_URL` | Upstream backend URL (default: `https://api.freepi.ai`) |
 | `FREEPI_CLIENT_VERSION` | Client version sent to upstream (default: `0.6.23`) |
 

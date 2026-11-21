@@ -25,9 +25,130 @@ const BACKEND_BASE = (process.env.FREEPI_BASE_URL || 'https://api.freepi.ai').re
 const CLIENT_VERSION = process.env.FREEPI_CLIENT_VERSION || '0.6.23';
 const PROXY_API_KEY = process.env.PROXY_API_KEY || ''; // Optional security key for this proxy
 
-// Session ID for this proxy instance
-export const PROXY_SESSION_ID = crypto.randomUUID();
+// Session ID management: persisted to .session-id to avoid exhausting the 4 concurrent sessions limit
+const SESSION_FILE_PATH = process.env.FREEPI_SESSION_FILE || path.join(__dirname, '.session-id');
+
+export function getOrCreateSessionId() {
+  if (process.env.FREEPI_SESSION_ID) {
+    return process.env.FREEPI_SESSION_ID.trim();
+  }
+  try {
+    if (fs.existsSync(SESSION_FILE_PATH)) {
+      const existing = fs.readFileSync(SESSION_FILE_PATH, 'utf-8').trim();
+      if (existing && existing.length >= 10) {
+        return existing;
+      }
+    }
+    const newId = crypto.randomUUID();
+    fs.writeFileSync(SESSION_FILE_PATH, newId, 'utf-8');
+    return newId;
+  } catch (err) {
+    console.error('[Session] Failed to read/write .session-id file:', err.message);
+    return crypto.randomUUID();
+  }
+}
+
+export const PROXY_SESSION_ID = getOrCreateSessionId();
 let currentTurnId = crypto.randomUUID();
+
+/**
+ * Single-flight gate to ensure "one request at a time" per Free-PI account,
+ * preventing 429 concurrent errors during parallel tool-calls / sub-agents.
+ */
+class SingleFlightGate {
+  constructor() {
+    this.queue = [];
+    this.active = false;
+  }
+
+  get queueLength() {
+    return this.queue.length;
+  }
+
+  acquire() {
+    return new Promise(resolve => {
+      if (!this.active) {
+        this.active = true;
+        resolve(() => this.release());
+      } else {
+        this.queue.push(resolve);
+      }
+    });
+  }
+
+  release() {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      next(() => this.release());
+    } else {
+      this.active = false;
+    }
+  }
+}
+
+export const chatGate = new SingleFlightGate();
+
+const MAX_429_WAIT_MS = 150000; // ~2.5 minutes maximum total backoff
+const INITIAL_BACKOFF_MS = 3000; // 3 seconds initial delay
+
+async function executeWithRetry(sendBackendRequest, abortController) {
+  let attempt = 0;
+  let totalWaitMs = 0;
+  let delay = INITIAL_BACKOFF_MS;
+
+  while (true) {
+    if (abortController?.signal?.aborted) {
+      throw new Error('Request aborted by client');
+    }
+
+    attempt++;
+    let backendRes;
+    try {
+      backendRes = await sendBackendRequest();
+    } catch (err) {
+      if (attempt <= 2 && !abortController?.signal?.aborted) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      throw err;
+    }
+
+    // 1. Handle 403 (ads_required)
+    if (backendRes.status === 403) {
+      const errText = await backendRes.clone().text().catch(() => '');
+      if (errText.includes('ads') || errText.includes('403')) {
+        console.log('🔄 Upstream 403 (ads_required). Firing ad impression and retrying...');
+        await fetchAndRecordAd('403_retry', true);
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+    }
+
+    // 2. Handle 429 concurrent ("one request at a time" or rate limits)
+    if (backendRes.status === 429) {
+      if (totalWaitMs + delay > MAX_429_WAIT_MS) {
+        console.error(`⚠️ Exceeded max 429 backoff wait (${totalWaitMs}ms). Returning 429 to client.`);
+        return backendRes;
+      }
+
+      const errText = await backendRes.clone().text().catch(() => '');
+      console.log(`⏳ Upstream 429 concurrent detected (${errText.slice(0, 100)}). Waiting ${delay / 1000}s before retry (attempt ${attempt})...`);
+
+      await new Promise(r => setTimeout(r, delay));
+      totalWaitMs += delay;
+      delay = Math.min(60000, delay * 2); // Exponential backoff: 3s -> 6s -> 12s -> 24s -> 48s -> 60s
+      continue;
+    }
+
+    // 3. Handle 409 concurrent_session note
+    if (backendRes.status === 409) {
+      const errText = await backendRes.clone().text().catch(() => '');
+      console.warn(`⚠️ Upstream 409 concurrent_session detected: ${errText.slice(0, 150)}`);
+    }
+
+    return backendRes;
+  }
+}
 
 // Path to credentials
 const CREDENTIALS_PATH = process.env.FREEPI_CREDENTIALS_PATH || path.join(os.homedir(), '.free-pi', 'agent', 'credentials.json');
@@ -430,70 +551,75 @@ const server = http.createServer(async (req, res) => {
         }
 
         const isStream = Boolean(parsedBody.stream);
-
-        // Ensure ad is active before request if older than 50s
-        if (Date.now() - lastAdImpressionTime > 50000) {
-          await fetchAndRecordAd('pre_chat');
-        }
-
-        currentTurnId = crypto.randomUUID();
-
-        const sendBackendRequest = () => {
-          return fetch(`${BACKEND_BASE}/v1/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              'authorization': `Bearer ${token}`,
-              'x-client-version': CLIENT_VERSION,
-              'x-session-id': PROXY_SESSION_ID,
-              'x-turn-id': currentTurnId
-            },
-            body: JSON.stringify(parsedBody)
-          });
-        };
-
-        let backendRes = await sendBackendRequest();
-
-        // Self-healing: If rejected with 403 (ads_required), fetch new ad, fire impression, and retry
-        if (backendRes.status === 403) {
-          const errText = await backendRes.clone().text();
-          if (errText.includes('ads') || errText.includes('403')) {
-            console.log('🔄 Upstream requested ads. Firing ad impression and retrying request...');
-            await fetchAndRecordAd('403_retry', true);
-            await new Promise(r => setTimeout(r, 400));
-            backendRes = await sendBackendRequest();
+        const abortController = new AbortController();
+        res.on('close', () => {
+          if (!res.writableEnded) {
+            abortController.abort();
           }
-        }
+        });
 
-        if (!backendRes.ok) {
-          const errText = await backendRes.text();
-          let errJson;
-          try { errJson = JSON.parse(errText); } catch { errJson = { error: { message: errText } }; }
-          return sendJson(res, backendRes.status, errJson);
-        }
-
-        // Handle streaming response
-        if (isStream) {
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream; charset=utf-8',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*'
-          });
-
-          const reader = backendRes.body.getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            res.write(value);
+        // Single-flight gate: serializes requests so only 1 chat completion runs at a time
+        const releaseGate = await chatGate.acquire();
+        try {
+          // Ensure ad is active before request if older than 50s
+          if (Date.now() - lastAdImpressionTime > 50000) {
+            await fetchAndRecordAd('pre_chat');
           }
-          res.end();
-        } else {
-          // Handle standard JSON response
-          const json = await backendRes.json();
-          return sendJson(res, 200, json);
+
+          currentTurnId = crypto.randomUUID();
+
+          const sendBackendRequest = () => {
+            return fetch(`${BACKEND_BASE}/v1/chat/completions`, {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'authorization': `Bearer ${token}`,
+                'x-client-version': CLIENT_VERSION,
+                'x-session-id': PROXY_SESSION_ID,
+                'x-turn-id': currentTurnId
+              },
+              body: JSON.stringify(parsedBody),
+              signal: abortController.signal
+            });
+          };
+
+          const backendRes = await executeWithRetry(sendBackendRequest, abortController);
+
+          if (!backendRes.ok) {
+            const errText = await backendRes.text();
+            let errJson;
+            try { errJson = JSON.parse(errText); } catch { errJson = { error: { message: errText } }; }
+            return sendJson(res, backendRes.status, errJson);
+          }
+
+          // Handle streaming response
+          if (isStream) {
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream; charset=utf-8',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+              'Access-Control-Allow-Origin': '*'
+            });
+
+            const reader = backendRes.body.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(value);
+            }
+            res.end();
+          } else {
+            // Handle standard JSON response
+            const json = await backendRes.json();
+            return sendJson(res, 200, json);
+          }
+        } finally {
+          releaseGate();
         }
       } catch (err) {
+        if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+          return;
+        }
         console.error('[Error] Proxy request failed:', err);
         return sendJson(res, 502, {
           error: {
