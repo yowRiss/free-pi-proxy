@@ -228,6 +228,7 @@ curl http://localhost:3000/v1/chat/completions \
 | `-k, --key <string>` | Secret key to protect the proxy | None (Public) |
 | `-t, --token <jwt>` | Explicit Free-PI JWT token | Auto-detected |
 | `stats, dashboard` | View CLI usage & credit summary | - |
+| `reset-session` | Free stuck sessions on backend (`/session/reset`) | - |
 | `test, --test` | Run diagnostic self-test | - |
 | `-v, --version` | Display version | - |
 | `-h, --help` | Display help screen | - |

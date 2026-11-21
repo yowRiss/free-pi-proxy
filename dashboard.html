@@ -424,6 +424,7 @@
       <div class="header-actions">
         <span id="proxyStatusBadge" class="badge badge-online">● Proxy Online</span>
         <span id="userBadge" class="badge">👤 Loading...</span>
+        <button class="btn" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;" onclick="resetOtherSessions()">🔓 Reset Stuck Sessions</button>
         <button class="btn" onclick="loadDashboardData()">🔄 Refresh</button>
       </div>
     </header>
@@ -788,6 +789,22 @@
         }
       } catch (err) {
         console.error('Error fetching ad:', err);
+      }
+    }
+
+    async function resetOtherSessions() {
+      if (!confirm('Free all stuck sessions on Free-PI backend (equivalent to /close-other-session)?')) return;
+      try {
+        const res = await fetch('/api/session/reset', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.released ? '✅ Successfully released stuck sessions!' : 'ℹ️ ' + data.message);
+          loadDashboardData();
+        } else {
+          alert('❌ Reset failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('❌ Error: ' + err.message);
       }
     }
 

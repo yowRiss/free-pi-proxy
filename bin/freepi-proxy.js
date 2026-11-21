@@ -3,7 +3,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { getFreePiToken, fetchFullStats, fetchAndRecordAd, startServer } from '../server.js';
+import { getFreePiToken, fetchFullStats, fetchAndRecordAd, resetFreePiSessions, startServer } from '../server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +20,7 @@ Usage:
 
 Commands:
   stats, dashboard        Show current usage, credits & model stats in terminal
+  reset-session           Free stuck sessions on backend (equiv. to /close-other-session)
   test                    Run self-diagnostics test against proxy
 
 Options:
@@ -121,6 +122,22 @@ async function showTerminalStats() {
 const firstArg = args[0];
 if (firstArg === 'stats' || firstArg === 'dashboard' || firstArg === '--stats' || firstArg === '--dashboard') {
   await showTerminalStats();
+  process.exit(0);
+}
+
+if (firstArg === 'reset-session' || firstArg === 'close-other-session' || firstArg === '--reset-session') {
+  console.log('⏳ Sending session reset request to Free-PI backend...');
+  try {
+    const res = await resetFreePiSessions();
+    if (res.released) {
+      console.log('✅ Successfully released stuck sessions on Free-PI backend!');
+    } else {
+      console.log('ℹ️ No other active sessions were running on Free-PI backend.');
+    }
+  } catch (err) {
+    console.error('❌ Failed to reset sessions:', err.message);
+    process.exit(1);
+  }
   process.exit(0);
 }
 

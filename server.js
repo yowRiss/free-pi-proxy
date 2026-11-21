@@ -140,14 +140,47 @@ async function executeWithRetry(sendBackendRequest, abortController) {
       continue;
     }
 
-    // 3. Handle 409 concurrent_session note
+    // 3. Handle 409 concurrent_session - automatically reset stuck sessions and retry
     if (backendRes.status === 409) {
       const errText = await backendRes.clone().text().catch(() => '');
       console.warn(`⚠️ Upstream 409 concurrent_session detected: ${errText.slice(0, 150)}`);
+      if (attempt === 1 || errText.includes('concurrent_session') || errText.includes('session limit')) {
+        console.log('🔄 Freeing stuck sessions via /session/reset and retrying...');
+        try {
+          await resetFreePiSessions();
+          await new Promise(r => setTimeout(r, 600));
+          continue;
+        } catch (resetErr) {
+          console.error('[Session Reset] Auto-reset failed:', resetErr.message);
+        }
+      }
     }
 
     return backendRes;
   }
+}
+
+/**
+ * Reset and clear stuck sessions on Free-PI backend
+ * (Equivalent to CLI command /close-other-session)
+ */
+export async function resetFreePiSessions(token = getFreePiToken()) {
+  if (!token) throw new Error('No Free-PI token found');
+  const res = await fetch(`${BACKEND_BASE}/session/reset`, {
+    method: 'POST',
+    headers: {
+      'authorization': `Bearer ${token}`,
+      'x-client-version': CLIENT_VERSION
+    }
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Session reset failed (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json().catch(() => ({ released: false }));
+  return data;
 }
 
 // Path to credentials
@@ -474,7 +507,28 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
-  // 3. Dashboard Stats JSON Endpoint
+  // 3. Session Reset Endpoint (/close-other-session equivalent)
+  if (req.method === 'POST' && (pathname === '/api/session/reset' || pathname === '/session/reset' || pathname === '/api/session/close-other')) {
+    const token = getFreePiToken();
+    try {
+      const data = await resetFreePiSessions(token);
+      return sendJson(res, 200, {
+        success: true,
+        released: data.released,
+        message: data.released
+          ? 'Successfully released stuck sessions on Free-PI backend.'
+          : 'No other active sessions were found on Free-PI backend.',
+        session_id: PROXY_SESSION_ID
+      });
+    } catch (err) {
+      return sendJson(res, 500, {
+        success: false,
+        error: err.message
+      });
+    }
+  }
+
+  // 4. Dashboard Stats JSON Endpoint
   if (req.method === 'GET' && (pathname === '/api/stats' || pathname === '/stats')) {
     const token = getFreePiToken();
     const stats = await fetchFullStats(token);
