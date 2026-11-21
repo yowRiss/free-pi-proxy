@@ -428,6 +428,40 @@
       </div>
     </header>
 
+    <!-- Sponsored Ad Banner (Live Free-PI Ad System) -->
+    <div id="adBannerBox" class="card" style="margin-bottom: 24px; border: 1px solid rgba(139, 92, 246, 0.4); background: linear-gradient(180deg, rgba(139, 92, 246, 0.08) 0%, rgba(18, 18, 21, 0.95) 100%);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border-color: rgba(139, 92, 246, 0.4); font-weight: 700;">
+            📢 SPONSORED AD
+          </span>
+          <span id="adStatusBadge" class="badge badge-online">
+            ● Free-PI Impression Verified
+          </span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span id="adTimerText" style="font-size: 11px; color: var(--text-muted);">Last impression: Active</span>
+          <button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="loadAd(true)">Next Ad ↻</button>
+        </div>
+      </div>
+
+      <div id="adContentArea" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="flex: 1; min-width: 280px;">
+          <h3 id="adHeadline" style="font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; font-family: var(--font-mono); letter-spacing: -0.3px;">
+            Loading Sponsor Ad...
+          </h3>
+          <p id="adBody" style="font-size: 13px; color: #d4d4d8; font-family: var(--font-mono);">
+            Connecting to Free-PI ad network to verify ad impressions and unlock free completions...
+          </p>
+        </div>
+        <div>
+          <a id="adCtaBtn" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="text-decoration: none; font-weight: 600; white-space: nowrap; padding: 10px 18px;">
+            Visit Sponsor ↗
+          </a>
+        </div>
+      </div>
+    </div>
+
     <!-- Top Stats Grid -->
     <div class="grid">
       <!-- Card 1: Daily Allowance & Credits -->
@@ -724,10 +758,45 @@
       });
     }
 
+    async function loadAd(force = false) {
+      try {
+        const url = force ? '/api/ad/refresh' : '/api/ad';
+        const method = force ? 'POST' : 'GET';
+        const res = await fetch(url, { method });
+        if (!res.ok) return;
+        const data = await res.json();
+        const ad = data.ad;
+        if (!ad) return;
+
+        const headline = ad.creative?.headline || 'Free-PI Sponsor';
+        const body = ad.creative?.body || 'Ads keep completions free for everyone.';
+        const cta = ad.creative?.cta || 'Learn More';
+        const clickUrl = ad.click_url || 'https://freepi.ai';
+        const accent = ad.creative?.accent || '#8b5cf6';
+
+        document.getElementById('adHeadline').innerText = headline;
+        document.getElementById('adBody').innerText = body;
+        document.getElementById('adCtaBtn').innerText = `${cta} ↗`;
+        document.getElementById('adCtaBtn').href = clickUrl;
+        document.getElementById('adCtaBtn').style.backgroundColor = accent;
+        document.getElementById('adCtaBtn').style.borderColor = accent;
+        document.getElementById('adBannerBox').style.borderColor = accent;
+
+        if (data.last_impression_at) {
+          const t = new Date(data.last_impression_at).toLocaleTimeString();
+          document.getElementById('adTimerText').innerText = `Impression verified at ${t}`;
+        }
+      } catch (err) {
+        console.error('Error fetching ad:', err);
+      }
+    }
+
     // Initial load
     loadDashboardData();
-    // Refresh stats every 15 seconds
+    loadAd();
+    // Refresh stats every 15 seconds, ads every 40 seconds
     setInterval(loadDashboardData, 15000);
+    setInterval(() => loadAd(false), 40000);
   </script>
 </body>
 </html>

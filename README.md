@@ -32,9 +32,10 @@ It allows you to use your free daily AI inference allowance inside **any** appli
 
 - **🔌 OpenAI Standard Compatible**: Implements `/v1/chat/completions` (streaming & non-streaming) and `/v1/models`.
 - **⚡ Server-Sent Events (SSE)**: Native streaming support with smooth token delivery.
+- **📢 Automated Ad Verification & Dashboard Banner**: Automatically pulls Free-PI ads, records impressions, and displays live sponsor banners in both the Web Dashboard and CLI, completely preventing `HTTP 403: ads_required` errors.
 - **📊 Built-in Web & CLI Dashboard**:
-  - **Web UI** (`/dashboard`): Track credit allowance, usage history, token metrics, model catalog, and test prompts in an interactive playground.
-  - **Terminal CLI** (`freepi-proxy stats`): Instant CLI summary of today's credits and token consumption.
+  - **Web UI** (`/dashboard`): Track credit allowance, usage history, token metrics, model catalog, live sponsor ads, and test prompts in an interactive playground.
+  - **Terminal CLI** (`freepi-proxy stats`): Instant CLI summary of today's credits, token consumption, and active sponsor.
 - **🔑 Automatic Credential Discovery**: Automatically reads your active session token from `~/.free-pi/agent/credentials.json`.
 - **🛡️ Secure Gateway**: Optional `PROXY_API_KEY` protection to prevent unauthorized usage when exposed to the internet.
 - **🌐 Zero Dependencies**: Built entirely with native Node.js (`node:http`, `fetch`, ESM) — no `npm install` needed.

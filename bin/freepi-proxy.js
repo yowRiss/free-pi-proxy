@@ -3,7 +3,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { getFreePiToken, fetchFullStats, startServer } from '../server.js';
+import { getFreePiToken, fetchFullStats, fetchAndRecordAd, startServer } from '../server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -103,6 +103,14 @@ async function showTerminalStats() {
   });
   if (models.length > freeModels.length) {
     console.log(`   🛡️ Defense & Other Models: ${models.length - freeModels.length} models`);
+  }
+  const ad = await fetchAndRecordAd('cli_stats');
+  if (ad && ad.creative) {
+    console.log('─────────────────────────────────────────────────────────────────────');
+    console.log('📢 ACTIVE SPONSOR (Impression Verified):');
+    console.log(`   \x1b[1m${ad.creative.headline}\x1b[0m`);
+    console.log(`   ${ad.creative.body}`);
+    console.log(`   👉 ${ad.creative.cta}: \x1b[34m${ad.click_url}\x1b[0m`);
   }
   console.log('═════════════════════════════════════════════════════════════════════');
   console.log('💡 TIP: Run `freepi-proxy` to start the server, then visit:');
